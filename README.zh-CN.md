@@ -86,7 +86,7 @@ awr --project /path/to/project intake inspect
 
 本地接入 MCP 时，让客户端启动 `awr-mcp --project /项目绝对路径`。0.4.0 同时支持[共享 MCP 常驻服务](docs/reference/mcp-service.md)：一个 HTTP 入口服务多个项目和客户端，保存独立的会话、检查点、用户等待和请求回执。这些能力均包含在 0.4.0 安装包中。
 
-详见 [MCP 配置与工具](crates/awr-mcp/README.md)、[Codex 接入](docs/integrations/codex.md)、[检查点与恢复示例](examples/codex/README.md)、[项目接管指南](docs/TAKEOVER.md)。
+详见 [MCP 配置与工具](crates/awr-mcp/README.md)、[Codex 接入](docs/integrations/codex.md)、[Cursor 接入](docs/integrations/cursor.md)、[检查点与恢复示例](examples/codex/README.md)、[项目接管指南](docs/TAKEOVER.md)。
 
 AWR 可托管自己启动的命令，并连接受支持的客户端生命周期事件。任意已有进程或客户端私有会话的恢复，需要对应客户端配合。
 

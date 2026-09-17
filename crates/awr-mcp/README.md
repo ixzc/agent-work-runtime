@@ -24,6 +24,9 @@ A generic configuration for local stdio is:
 }
 ```
 
+Client-specific merge paths are in the [Codex](../../docs/integrations/codex.md)
+and [Cursor](../../docs/integrations/cursor.md) guides.
+
 Initialize and index projects through `awr init` and `awr source reindex` first.
 Starting the server does not create or migrate a database. Stdio stays bound to its
 startup project; HTTP accepts registered project keys, never arbitrary paths.

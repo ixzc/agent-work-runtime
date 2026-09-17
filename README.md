@@ -115,6 +115,7 @@ after initialization. AWR 0.4.0 also provides a [shared MCP service](docs/refere
 one HTTP endpoint for multiple projects and clients, with persistent sessions,
 checkpoints, user waits and request recovery. See the [MCP setup and tools](crates/awr-mcp/README.md),
 [Codex guide](docs/integrations/codex.md),
+[Cursor guide](docs/integrations/cursor.md),
 [checkpoint/resume example](examples/codex/README.md) and
 [project intake and execution guide](docs/TAKEOVER.md).
 
