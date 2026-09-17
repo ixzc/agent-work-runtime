@@ -14,13 +14,13 @@ from unittest.mock import patch
 
 import assemble_release
 from build_packages import python_version
-from mcp_catalog import STDIO_TOOLS, validate_stdio_tools
+from mcp_catalog import DOMAIN_TOOLS, validate_stdio_tools
 import publish_npm
 
 
 class ReleaseChecks(unittest.TestCase):
     def test_installed_catalog_requires_continuity_tools_and_unique_names(self):
-        names = sorted(STDIO_TOOLS)
+        names = sorted(DOMAIN_TOOLS)
         self.assertEqual(validate_stdio_tools(list(reversed(names))), names)
         for invalid in [names[:-1], names + [names[0]],
                         names[:-1] + ["unrelated_tool"], [f"tool-{i}" for i in range(20)],
@@ -43,7 +43,7 @@ class ReleaseChecks(unittest.TestCase):
         npm.mkdir()
         artifacts = {}
         tag = "next" if "-" in version else "latest"
-        for suffix in ["", "-darwin-arm64", "-darwin-x64", "-linux-x64-gnu", "-win32-x64"]:
+        for suffix in ["", "-darwin-arm64", "-darwin-x64", "-linux-x64-gnu", "-linux-arm64-gnu", "-win32-x64"]:
             path = npm / ("package" + suffix + ".tgz")
             metadata = json.dumps({"name": "@originoneai/agent-work-runtime" + suffix,
                                    "version": version, "publishConfig": {"tag": tag}}).encode()
@@ -64,7 +64,7 @@ class ReleaseChecks(unittest.TestCase):
                 with patch.object(sys, "argv", ["publish_npm.py", str(root)]), patch("publish_npm.subprocess.run") as run, redirect_stdout(io.StringIO()):
                     publish_npm.main()
                 commands = [call.args[0] for call in run.call_args_list]
-                self.assertEqual(len(commands), 5)
+                self.assertEqual(len(commands), 6)
                 self.assertTrue(all(c[c.index("--tag")+1] == tag for c in commands))
                 self.assertEqual(Path(commands[-1][2]).name, "package.tgz")
                 self.assertIn("package-darwin-x64.tgz", [Path(c[2]).name for c in commands[:-1]])
@@ -104,7 +104,7 @@ class ReleaseChecks(unittest.TestCase):
             (base / "manifest.json").write_text(json.dumps(manifest))
             checks = {"version_and_help": True, "exit_code_and_stderr": True,
                       "unicode_space_project_init_and_status": True, "task_context_and_intake": True,
-                      "mcp_stdio_tools": sorted(STDIO_TOOLS)}
+                      "mcp_stdio_tools": sorted(DOMAIN_TOOLS)}
             receipt = {"source_sha": source, "platform": platform, "artifact_sha256": artifacts, "npm": checks, "python": checks}
             (base / "installation-checks.json").write_text(json.dumps(receipt))
         return source
@@ -130,9 +130,9 @@ class ReleaseChecks(unittest.TestCase):
                     if fault == "source":
                         data["source_sha"] = "2" * 40
                     elif fault == "missing_tool":
-                        data["python"]["mcp_stdio_tools"].remove("awr_session_resume")
+                        data["python"]["mcp_stdio_tools"].remove("awr_session")
                     elif fault == "duplicate_tool":
-                        data["python"]["mcp_stdio_tools"].append("awr_session_resume")
+                        data["python"]["mcp_stdio_tools"].append("awr_session")
                     elif fault == "wrong_tool":
                         data["python"]["mcp_stdio_tools"][0] = "unrelated_tool"
                     else:
@@ -147,7 +147,7 @@ class ReleaseChecks(unittest.TestCase):
                         assemble_release.main()
                         result = json.loads((root / "release/release-manifest.json").read_text())
                         self.assertEqual((result["version"], result["python_version"], result["channel"]), ("0.2.0", "0.2.0", "latest"))
-                        self.assertEqual(len(result["artifacts"]), 9)
+                        self.assertEqual(len(result["artifacts"]), 11)
                         self.assertIn("darwin-x64", result["platforms"])
 
 

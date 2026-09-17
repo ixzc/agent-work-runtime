@@ -10,7 +10,9 @@
     "awr-mcp",
     "awr-runtime",
     "awr-source",
-    "awr-store"
+    "awr-store",
+    "awr-team",
+    "awr-workspace"
   ],
   "target_gates": 17,
   "ignored_tests": [
