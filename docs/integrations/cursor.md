@@ -2,18 +2,29 @@
 
 AWR supplies current project facts, work context and recoverable session memory.
 Cursor performs the work with its own tools and models. The local workflow below
-uses AWR's CLI and stdio MCP against the same initialized project. AWR 0.3.3
-also exposes session/claim lifecycle through MCP and a
-[shared HTTP service](../reference/mcp-service.md) for multiple projects and clients.
+uses AWR's CLI and stdio MCP against the same initialized project. Current AWR
+**0.4.0** packages include session/claim lifecycle and the
+[shared HTTP service](../reference/mcp-service.md) (both since 0.3.3) for
+multiple projects and clients.
 
 This guide was checked against **Cursor 3.18.9** and the
 [official MCP documentation](https://cursor.com/docs/mcp) on **2026-09-17**.
 Cursor's conversation ID, Agent Window and Cloud Agents are separate from AWR
 session IDs. Provider/model labels in AWR records do not configure or invoke Cursor.
 
-## Build and bind the project
+## Install and bind the project
 
-Build both executables from an AWR checkout:
+Install **0.4.0** and resolve absolute paths to `awr` and `awr-mcp`:
+
+```sh
+npm install -g @originoneai/agent-work-runtime@0.4.0
+# or, in a Python virtual environment
+python -m pip install agent-work-runtime==0.4.0
+command -v awr
+command -v awr-mcp
+```
+
+From an AWR checkout, contributors can instead build:
 
 ```sh
 cargo build --locked -p awr-cli -p awr-mcp
@@ -36,33 +47,34 @@ Preserve existing servers. Cursor loads MCP from:
 | Project | `.cursor/mcp.json` in the opened workspace |
 | User | `~/.cursor/mcp.json` |
 
-When both files define the same server name, the project file takes precedence.
-Do not commit a project file that contains a machine-local AWR root, credentials
-or another project's identity. `${workspaceFolder}` is the folder that contains
-`.cursor/mcp.json`; it is the right substitution for a binary built in that
-workspace, not automatically the AWR `--project` root. If the Cursor CLI omits a
-project-scoped server, use the user file or the desktop Agent Window.
+Prefer a single definition for the `awr` server. When both files exist, confirm
+in **Customize** and by calling `awr_project_status` which server the Agent
+Window actually attached. Do not commit a project file that contains a
+machine-local AWR root, credentials or another project's identity.
+`${workspaceFolder}` is the folder that contains `.cursor/mcp.json`; it is the
+right substitution for a binary built in that workspace, not automatically the
+AWR `--project` root. If the Cursor CLI omits a project-scoped server, use the
+user file or the desktop Agent Window.
 
-The equivalent stdio entry is:
+The documented stdio entry is:
 
 ```json
 {
   "mcpServers": {
     "awr": {
+      "type": "stdio",
       "command": "/absolute/path/to/awr-mcp",
-      "args": ["--project", "/absolute/path/to/initialized/project"],
-      "cwd": "/absolute/path/to/initialized/project"
+      "args": ["--project", "/absolute/path/to/initialized/project"]
     }
   }
 }
 ```
 
-Official Cursor documentation also lists `"type": "stdio"` as a stdio field.
-Working local `mcp.json` files commonly omit it; include it when an allowlist or
-enterprise policy requires an explicit transport. Cursor interpolates
-`${userHome}`, `${workspaceFolder}`, `${workspaceFolderBasename}`,
-`${pathSeparator}`, `${/}` and `${env:NAME}` in `command`, `args`, `env`, `url`
-and `headers`.
+`type` is required in Cursor's STDIO field table. AWR only needs an absolute
+`command` and `--project`; `cwd` is not in that field set and is safe to omit
+when `--project` is absolute. Cursor interpolates `${userHome}`,
+`${workspaceFolder}`, `${workspaceFolderBasename}`, `${pathSeparator}`, `${/}`
+and `${env:NAME}` in `command`, `args`, `env`, `url` and `headers`.
 
 After editing configuration, reload the window or toggle the server in
 **Customize**. A configured server is not proof of an active connection. Open
@@ -71,7 +83,7 @@ After editing configuration, reload the window or toggle the server in
 work. Cursor asks for MCP tool approval by default; Auto-review still classifies
 non-allowlisted tools.
 
-The expected tools are:
+The minimum connected set to confirm before work is:
 
 | Read tools | Mutation tools |
 | --- | --- |
@@ -81,13 +93,16 @@ The expected tools are:
 | `awr_context_compile` | |
 | `awr_search` | |
 
-Their argument and error contracts are in [the MCP reference](../../crates/awr-mcp/README.md).
+Full lifecycle and continuity tools (session start/checkpoint/resume/claim,
+waits, operations, source reindex, work prepare/manage, change preview/apply,
+compaction) are listed in [the MCP reference](../../crates/awr-mcp/README.md).
+Prefer those over shell when the Agent Window already has a live `awr` server.
 The server does not require a model API key.
 
 Desktop and the Agent Window can launch a local executable. Cloud Agents cannot
 run that stdio command against a laptop filesystem; they need a reachable
-[shared Streamable HTTP service](#shared-http-and-cloud-agents) whose registered
-roots exist on the server.
+[shared Streamable HTTP service](#shared-http) whose registered roots exist on
+the server.
 
 ## Manual session workflow
 
@@ -124,7 +139,9 @@ AWR_SESSION=$(jq -er '.session.id' "$AWR_NOTES/start.json")
 The returned claim is runtime ownership. It does not rewrite the source work's
 status or owner. Use the appropriate AWR work transition before progress; inspect
 conflicts rather than acquiring a competing claim. The AWR session ID is distinct
-from the Cursor chat or Agent Window conversation ID.
+from the Cursor chat or Agent Window conversation ID. `--provider cursor` on
+`session start` is metadata only. Client binders do not have a `cursor` enum;
+`--client` accepts `codex`, `kimi` or `generic`.
 
 For the same work handed over from Codex, Grok, Kimi or an earlier Cursor
 session, use this **alternative**. Supply the predecessor's AWR session ID from
@@ -248,22 +265,46 @@ awrj session end --session "$AWR_SESSION" --outcome incomplete \
 An ended session releases its claims. It does not complete the source work;
 `work complete` still requires the task's evidence and acceptance bindings.
 
-To attach a Cursor conversation ID to an existing AWR session without installing
-hooks, use the generic binder:
+## Bind a Cursor conversation
+
+`client bind` maps a native conversation ID onto AWR work. It does not acquire a
+claim. `--client generic` records the binder as `generic:<conversation>`; that is
+separate from `--provider cursor` on `session start`. There is no `--client
+cursor`. On bind, hook and show, `--client cursor` is `InvalidInput`. On
+`client install`, a non-Codex `--client` (including `cursor`) is `Unsupported`.
+Do not treat either error as a missing binary or a failed MCP connection.
+
+To attach a Cursor conversation ID to a **still-active** AWR session, pass
+`--session`. That does not resume or create a successor:
 
 ```sh
-awr client bind --client generic --external-session CURSOR_CONVERSATION_ID \
-  --work "$AWR_WORK" --from-session "$AWR_SESSION"
+awrj client bind --client generic --external-session CURSOR_CONVERSATION_ID \
+  --work "$AWR_WORK" --session "$AWR_SESSION"
 ```
 
-`awr client install` currently installs automatic adapters for Codex only.
-Passing another `--client` value, including `cursor`, returns `Unsupported` and
-points at the generic lifecycle receiver. Do not treat that error as a missing
-binary or a failed MCP connection.
+To continue after a handoff or an ended predecessor, pass `--from-session`. That
+creates a successor session, then binds the new conversation to it:
 
-## Shared HTTP and Cloud Agents
+```sh
+awrj client bind --client generic --external-session CURSOR_CONVERSATION_ID \
+  --work "$AWR_WORK" --from-session "$AWR_PREDECESSOR"
+```
 
-Cursor remote MCP entries use a URL, not a local executable:
+Do not pass both flags. `awr client install` currently installs automatic
+adapters for Codex only. Other clients, including Cursor, use this generic
+binder and the manual checkpoint process below.
+
+## Shared HTTP
+
+Cursor remote MCP entries use a URL, not a local executable. AWR's shared
+service uses static bearer tokens, not Cursor's OAuth client registration. Put
+the token in the environment; do not commit it. HTTP tools require an explicit
+`project` key. See [the shared service guide](../reference/mcp-service.md).
+
+### Local desktop check
+
+A loopback URL is only a desktop Streamable HTTP smoke test. The service and the
+Cursor client must run on the same host:
 
 ```json
 {
@@ -278,11 +319,27 @@ Cursor remote MCP entries use a URL, not a local executable:
 }
 ```
 
-AWR's shared service uses static bearer tokens, not Cursor's OAuth client
-registration. Put the token in the environment; do not commit it. HTTP tools
-require an explicit `project` key. See [the shared service guide](../reference/mcp-service.md).
+### Cloud Agents
+
+Cloud Agents cannot reach an operator laptop's loopback. They need a reachable
+HTTPS front door, project roots that exist on that server, and the client's
+bearer via `${env:…}`:
+
+```json
+{
+  "mcpServers": {
+    "awr": {
+      "url": "https://awr.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:AWR_ENGINEERING_TOKEN}"
+      }
+    }
+  }
+}
+```
+
 This guide does not verify Cloud Agent, team-marketplace or enterprise-allowlist
-deployment.
+deployment, and it does not register an OAuth client with Cursor.
 
 ## Hooks and verification boundary
 
