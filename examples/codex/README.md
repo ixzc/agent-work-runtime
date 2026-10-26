@@ -28,11 +28,13 @@ python3 examples/codex/lifecycle.py \
 
 Choose a new output directory for each run. An existing directory is rejected;
 the script never overwrites or cleans an earlier run. The example executes
-init preview/accept, session start with a claim, bootstrap, L1 compile,
-checkpoint, resume, recovered-context inspection, session end and Doctor. It
-checks that the checkpoint's next action/open loop survive and that resume
-preserves the claim expiration. The copied source files remain unchanged; the
-example ends as incomplete and releases the claim.
+init preview/accept, session start with a claim, read-only `work assess`,
+bootstrap, L1 compile, checkpoint, resume, recovered-context inspection, session
+end and Doctor. It checks that classification did not grant execution admission,
+that the checkpoint's next action/open loop survive and that resume preserves
+the claim expiration. The copied source files remain unchanged; the example
+ends as incomplete and releases the claim. It does not run `work manage` or
+`spec check`.
 
 On failure, inspect the numbered JSON receipt and the retained project's
 `session list`, `session show` and event history. The script does not retry a
