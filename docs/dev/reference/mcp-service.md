@@ -1,8 +1,9 @@
 # Shared MCP service
 
-AWR 0.3.3 supports a single Streamable HTTP endpoint for multiple projects
-and independent MCP clients. Both npm and PyPI packages include this capability.
-The existing `awr-mcp --project /absolute/project` stdio command remains available.
+AWR 0.6.0 includes a single Streamable HTTP endpoint for multiple projects
+and independent MCP clients (first shipped in 0.3.3). Both npm and PyPI
+packages include this capability. The existing
+`awr-mcp --project /absolute/project` stdio command remains available.
 
 The development source adds explicit [workstream reads](#workstream-reads-development-source)
 with registry version 2. The legacy lifecycle and write tools below remain for
