@@ -9,9 +9,10 @@ MCP merge paths and optional hooks remain in the
 - `lifecycle.py`: executable CLI walkthrough using a fresh copy of
   [the basic fixture](../basic/) with this directory's `work-ledger.yaml`, which
   declares the phase required by bootstrap. It retains a receipt for every command.
-- `config.toml.example`: grouped Codex stdio template for published AWR 0.5.1
+- `config.toml.example`: grouped Codex stdio template for published AWR 0.6.0
   and this source tree. Replace absolute paths and merge the table into an
-  existing trusted project configuration.
+  existing trusted project configuration. 0.5.1 already grouped the catalog;
+  install 0.6.0 for schema 14.
 - `config.flat.toml.example`: legacy eight-tool allowlist. Use it only when the
   host cannot route through domain tools.
 - `AGENTS.snippet.md`: Codex instruction snippet. Copying it does not install
