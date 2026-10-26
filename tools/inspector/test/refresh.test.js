@@ -16,6 +16,10 @@ function liveFetch(project = "project-a", items = ["B1", "B2"]) {
       const key = new URL(url, "http://local").searchParams.get("key");
       return json({ok: true, data: {work: {external_key: key, title: `${project}: ${key}`}}});
     }
+    if (url.startsWith("/api/assess")) {
+      const key = new URL(url, "http://local").searchParams.get("key");
+      return json({ok: true, data: {work: key, decision: {mode: "undetermined", reasons: [], unknown_observations: [], required_actions: [], optional_maintenance: [], completion_policy: "unchanged_source_policy", execution_admission: "not_granted_by_management_classification"}, admission_gaps: [], next_action: "record_current_assessment_with_explicit_host_observations"}});
+    }
     const data = {project_revision: 7, current_total: 0, ready_count: 0, waiting_count: 0,
       blocked_count: items.length, current: [], ready: [], waiting: [], blocked: items.map(key => ({key, title: key})), omissions: {}};
     if (url.startsWith("/api/work-page")) {
@@ -36,7 +40,7 @@ async function selectOverview() {
 }
 beforeEach(async () => {
   Object.assign(app.state, {mode: "demo", project: "before-test", queueTab: "blocked", workFilter: "all",
-    overviewWork: null, selectedWork: null, status: null, sources: null, workDetail: {}, raw: {}, compile: null,
+    overviewWork: null, selectedWork: null, status: null, sources: null, workDetail: {}, workAssess: {}, raw: {}, compile: null,
     workPageSize: 10, workOffset: 0, workPage: null, workPageLoading: false, workPageError: null});
   $("fWork").textContent = "";
   $("fBudget").value = "6000";

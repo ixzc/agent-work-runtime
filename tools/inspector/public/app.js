@@ -77,6 +77,21 @@
       decisions:  ['decisions'],
       cycles:     ['dependency_cycles'],
     },
+    // awr work assess --json: management intensity, not completion or admission.
+    workAssess: {
+      mode:              ['decision.mode'],
+      reasons:           ['decision.reasons'],
+      unknown:           ['decision.unknown_observations'],
+      reevaluate:        ['decision.reevaluation_signals'],
+      requiredActions:   ['decision.required_actions'],
+      completionPolicy:  ['decision.completion_policy'],
+      executionAdmission:['decision.execution_admission'],
+      admissionGaps:     ['admission_gaps'],
+      nextAction:        ['next_action'],
+      recordRequired:    ['record_required'],
+      observationBasis:  ['observation_basis'],
+      scope:             ['scope'],
+    },
     context: {
       rendered:   ['work_context.rendered_context', 'rendered_context', 'diagnostic_text'],
       chunks:     ['work_context.selected_chunks', 'selected_chunks'],
@@ -288,6 +303,7 @@
     status: null,          // Normalized status.
     works: [],             // Normalized work-item list.
     workDetail: {},        // Key to details.
+    workAssess: {},        // Key to read-only work assess results.
     sources: null,
     sessions: { items: [], loaded: false, error: null, command: null, mayHaveMore: false },
     selectedSession: null,
@@ -1897,6 +1913,7 @@
     const generation = ++workPageGeneration;
     detailGuard.invalidate();
     state.workDetail = {};
+    state.workAssess = {};
     state.workPageLoading = true;
     state.workPage = null;
     state.workPageError = null;
@@ -2061,6 +2078,139 @@
     }
 
     return renderWorkDetail(state.selectedWork);
+  }
+
+  function applyWorkAssess(key, response) {
+    const k = key == null ? '' : String(key);
+    if (isUnsupported(response)) {
+      state.unsupported.add('work.assess');
+      state.workAssess[k] = {
+        loaded: true,
+        error: response.error,
+        data: null,
+        command: response.command,
+      };
+      return;
+    }
+    state.unsupported.delete('work.assess');
+    if (response && response.ok) {
+      state.workAssess[k] = {
+        loaded: true,
+        error: null,
+        data: response.data || {},
+        command: response.command,
+      };
+      return;
+    }
+    state.workAssess[k] = {
+      loaded: true,
+      error: (response && response.error) || { code: 'Error', message: '' },
+      data: null,
+      command: response && response.command,
+    };
+  }
+
+  function renderWorkAssess(host, bag) {
+    if (!host) return;
+    clear(host);
+    if (!bag || !bag.loaded) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_loading')));
+      return;
+    }
+    if (bag.error) {
+      host.appendChild(errorBlock(bag.error, bag.command));
+      return;
+    }
+    const data = bag.data || {};
+    const A = FIELD_MAP.workAssess;
+    const mode = pick(data, A.mode, null);
+    const gaps = pick(data, A.admissionGaps, null);
+    const nextAction = pick(data, A.nextAction, null);
+    const reasons = pick(data, A.reasons, null);
+    const unknown = pick(data, A.unknown, null);
+    const required = pick(data, A.requiredActions, null);
+    const admission = pick(data, A.executionAdmission, null);
+    const policy = pick(data, A.completionPolicy, null);
+    const basis = pick(data, A.observationBasis, null);
+
+    host.appendChild(el('h4', null, i18n.t('ui.work_assess')));
+    if (bag.command) {
+      const cmd = el('div', 'cmd');
+      cmd.appendChild(el('span', 'prompt', '$'));
+      cmd.appendChild(el('code', null, bag.command));
+      host.appendChild(cmd);
+    }
+    host.appendChild(el('p', 'figure-note', i18n.t('ui.work_assess_not_completion')));
+    if (mode) {
+      const line = el('p', null);
+      line.appendChild(el('span', 'sub', i18n.t('ui.work_assess_mode') + ' '));
+      line.appendChild(document.createTextNode(String(mode)));
+      host.appendChild(line);
+    }
+    if (admission) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_admission') + ' ' + admission));
+    }
+    if (policy) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_policy') + ' ' + policy));
+    }
+    host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_gaps')));
+    if (Array.isArray(gaps) && gaps.length) {
+      const ul = el('ul', 'crit-list');
+      for (const gap of gaps) ul.appendChild(el('li', null, String(gap)));
+      host.appendChild(ul);
+    } else {
+      host.appendChild(el('p', null, i18n.t('ui.work_assess_no_gaps')));
+    }
+    if (nextAction) {
+      const line = el('p', null);
+      line.appendChild(el('span', 'sub', i18n.t('ui.work_assess_next') + ' '));
+      line.appendChild(document.createTextNode(String(nextAction)));
+      host.appendChild(line);
+    }
+    if (Array.isArray(reasons) && reasons.length) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_reasons')));
+      const ul = el('ul', 'open-loops');
+      for (const reason of reasons) {
+        const bits = [reason && reason.code, reason && reason.basis].filter(Boolean);
+        ul.appendChild(el('li', null, bits.join(' · ')));
+      }
+      host.appendChild(ul);
+    }
+    if (Array.isArray(unknown) && unknown.length) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_unknown') + ' ' + unknown.join(', ')));
+    }
+    if (Array.isArray(required) && required.length) {
+      host.appendChild(el('p', 'sub', i18n.t('ui.work_assess_required')));
+      const ul = el('ul', 'open-loops');
+      for (const action of required) ul.appendChild(el('li', null, String(action)));
+      host.appendChild(ul);
+    }
+    if (basis) {
+      host.appendChild(el('p', 'sub', basis));
+    }
+  }
+
+  async function loadWorkAssess(key, token, host) {
+    const cached = state.workAssess[key];
+    if (cached && cached.loaded) {
+      renderWorkAssess(host, cached);
+      return;
+    }
+    renderWorkAssess(host, { loaded: false });
+    let response;
+    if (state.mode === 'demo') {
+      const demo = window.AWR_DEMO && typeof window.AWR_DEMO.workAssess === 'function'
+        ? window.AWR_DEMO.workAssess(key)
+        : null;
+      response = demo
+        ? { ok: true, data: demo, command: 'awr work assess ' + key }
+        : { ok: false, error: { code: 'NotFound', message: i18n.t('ui.work_assess_missing') } };
+    } else {
+      response = await callApi('/api/assess?key=' + encodeURIComponent(key));
+    }
+    if (!detailGuard.isCurrent(token)) return;
+    applyWorkAssess(key, response);
+    renderWorkAssess(host, state.workAssess[key]);
   }
 
   async function renderWorkDetail(key) {
@@ -2243,6 +2393,10 @@
     act.appendChild(btn);
     sec.appendChild(act);
     box.appendChild(sec);
+
+    const assessHost = el('div');
+    box.appendChild(assessHost);
+    await loadWorkAssess(key, token, assessHost);
   }
 
   // Context
@@ -2624,6 +2778,7 @@
     // Reindexing advances the revision, so invalidate all caches and reload.
     detailGuard.invalidate();
     state.workDetail = {};
+    state.workAssess = {};
     state.compile = null;
     await loadAll();
   }
@@ -2646,6 +2801,7 @@
     state.workPageLoading = false;
     state.workPageError = null;
     state.workDetail = {};
+    state.workAssess = {};
     state.status = null;
     state.sources = null;
     state.sessions = { items: [], loaded: false, error: null, command: null, mayHaveMore: false };
@@ -2690,6 +2846,7 @@
     ++workPageGeneration;
     detailGuard.invalidate();
     state.workDetail = {};
+    state.workAssess = {};
     state.workPage = null;
     const health = await callApi('/api/health');
     if (generation !== loadGeneration) return;
@@ -3178,7 +3335,7 @@
       renderPacketSize, doCompile, renderQueueList, fillWorkSelect, loadAll,
       renderSessions, renderEvents, applyListResponse, applySessionShow, applyCompactionInspect, selectSession,
       renderPending, applyRecoveryInspect, applyExecutionInspect, selectRecovery,
-      applyEventShow, selectEvent,
+      applyEventShow, selectEvent, applyWorkAssess,
     };
   }
 })();

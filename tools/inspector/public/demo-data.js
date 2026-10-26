@@ -357,6 +357,47 @@
       },
     },
 
+    workAssess(key) {
+      const gaps = key === 'EXAMPLE-008' ? ['goal_context_missing'] : [];
+      return {
+        version: 1,
+        work: key,
+        decision: {
+          version: 1,
+          mode: 'undetermined',
+          reasons: [],
+          unknown_observations: [
+            'single_outcome',
+            'bounded_scope',
+            'single_executor',
+            'no_deferred_wait',
+            'plan_valid',
+            'outcome_known',
+            'independently_schedulable_units',
+          ],
+          reevaluation_signals: [],
+          required_actions: [
+            'preserve_identity_intent_scope_and_current_state',
+            'consume_required_context_and_hard_rules',
+            'retain_completion_basis_and_actual_outcome',
+            'check_source_versions_permissions_claims_and_request_identity',
+            'assess_unknown_management_facts',
+          ],
+          optional_maintenance: [],
+          completion_policy: 'unchanged_source_policy',
+          execution_admission: 'not_granted_by_management_classification',
+        },
+        observation: null,
+        observation_basis: 'host_assertion_not_independently_verified',
+        admission_gaps: gaps,
+        record_required: true,
+        next_action: gaps.length
+          ? 'repair_required_context_before_execution'
+          : 'record_current_assessment_with_explicit_host_observations',
+        scope: 'Management requirements only. Readiness, required goals/rules, authorization and completion remain enforced by their existing operations.',
+      };
+    },
+
     executionInspects: {
       exe_4411: {
         observation: {

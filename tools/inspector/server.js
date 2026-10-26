@@ -258,6 +258,7 @@ const COMMANDS = {
   status: { argv: ['status'], write: false },
   ready: { argv: ['ready'], write: false },
   workShow: { argv: ['work', 'show'], write: false },
+  workAssess: { argv: ['work', 'assess'], write: false },
   mainlineNav: { argv: ['nav'], write: false },
   search: { argv: ['search'], write: false },
   intakeInspect: { argv: ['intake', 'inspect'], write: false },
@@ -643,6 +644,15 @@ const routes = {
     const key = asKey(url.searchParams.get('key'));
     if (!key) return { ok: false, error: { code: 'BadRequest', message: 'A valid key parameter is required' } };
     return runCommand('workShow', [key]);
+  },
+
+  'GET /api/assess': async (url) => {
+    const key = asKey(url.searchParams.get('key'));
+    if (!key) {
+      return { ok: false, error: { code: 'BadRequest', message: 'A valid key parameter is required' } };
+    }
+    // Read-only assess. Query strings cannot add --explain or record observations.
+    return runCommand('workAssess', [key]);
   },
 
   'GET /api/search': async (url) => {
