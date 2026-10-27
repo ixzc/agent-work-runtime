@@ -279,8 +279,13 @@ pub(crate) async fn inspect(
             .get("segment_query")
             .unwrap_or(&first["query"])
             .clone();
+        let revision_note = if result["source_revision"].is_null() {
+            "Extra content lacks submission.source_revision: do not guess; until an authorized, verifiable binding shows immutability + candidate binding, version is unverified."
+        } else {
+            "Extra content: this round's submission.source_revision needs an authorized-channel immutability + candidate-binding check; else version unverified."
+        };
         result["guidance"]["action"] = json!({"op":query["op"], "query":query,
-            "note":"Read every listed artifact before an independent decision. Prefer segment_query when present: follow all next_query pages, concatenate contiguous bytes and verify full length/sha256. Readability is not test verification, approval or integration."});
+            "note":format!("Read all manifest + report artifacts; not proof of complete source or code/verification, approval or integration. {revision_note} If segment_query exists, join contiguous pages; verify full length/sha256.")});
     }
     Ok(result)
 }

@@ -154,7 +154,13 @@ queries to inspect all submitted bytes. Code bodies and peer-workspace paths are
 not returned in the metadata. Each content read checks current authorization.
 An AWR-only primary report has `primary_evidence: true` and
 `manifest_artifact_id: null`; read it alongside every manifest entry. It is not
-added to the repository integration's file manifest.
+added to the repository integration's file manifest. This artifact list covers
+the manifest entries and primary report; readability proves neither complete
+source nor verification, approval or integration. Other content requires an
+authorized-channel check that this round's `submission.source_revision` is
+immutable and candidate-bound; a non-null or validly formatted value, including
+`artifact`, proves neither. If absent, do not guess: obtain a verifiable binding
+and check both properties. Do not follow a moving branch, raw locator or peer path.
 Content reads default to 64 KiB of raw bytes. An exact selector adds
 `max_context_bytes` only when the stored artifact needs a larger budget, up to
 1 MiB; other queries retain their 256 KiB maximum. JSON escaping, base64 and
