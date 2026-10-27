@@ -1,6 +1,8 @@
 //! Synthetic authenticated PG regressions; no native business acceptance credit.
 use super::*;
-use awr_team::delivery::{ArtifactEntry, ArtifactManifest, DeliveryCandidate, FactSource};
+use awr_team::delivery::{
+    ArtifactEntry, ArtifactManifest, DeliveryCandidate, FactSource, RevisionFormat,
+};
 use awr_team_pg::{
     ConfigureDeliveryConnector, DeliveryConnectorMapping, DeliveryReadSet, DeliverySyncStore,
     PgResult, ReviewStore, SelectDeliveryCandidate,
@@ -554,8 +556,26 @@ async fn review_needs_every_bound_manifest_artifact_and_returns_exact_authorized
     assert_eq!(submission["inspectable"], true);
     assert_eq!(submission["candidate_current"], true);
     assert_eq!(submission["candidate_digest"], binding);
+    assert_eq!(
+        submission["source_revision"],
+        serde_json::to_value(&selection.candidate.binding.source_revision).unwrap()
+    );
     assert_eq!(submission["repository_verification_inferred"], false);
     assert_eq!(submission["artifacts"].as_array().unwrap().len(), 2);
+    let action = &submission["guidance"]["action"];
+    assert_eq!(action["op"], action["query"]["op"]);
+    let note = action["note"].as_str().unwrap();
+    assert!(note.contains("not proof of complete source or code/verification"));
+    assert!(
+        note.contains(
+            "this round's submission.source_revision needs an authorized-channel immutability + candidate-binding check"
+        )
+    );
+    assert!(note.contains("else version unverified"));
+    assert!(!note.contains("the revision is immutable"));
+    assert!(
+        note.contains("If segment_query exists, join contiguous pages; verify full length/sha256")
+    );
     for (reference, expected) in submission["artifacts"]
         .as_array()
         .unwrap()
@@ -595,6 +615,78 @@ async fn review_needs_every_bound_manifest_artifact_and_returns_exact_authorized
         reads.query(TENANT, PROJECT, REVIEWER_TOKEN, limited).await,
         Err(PgError::ResponseTooLarge)
     ));
+}
+
+#[tokio::test]
+async fn review_without_source_revision_requires_a_verifiable_binding_instead_of_guessing() {
+    let (_guard, admin, db, reads) = setup().await;
+    seed_review_actors(&admin).await;
+    let delivery = connector(&admin, &db, &reads, "configure", "0", true).await;
+    let mut selection = select(&admin, &reads, &delivery).await;
+    let original = selection.candidate.binding.digest().unwrap();
+    selection.request_id = "select-without-source-revision".into();
+    selection.expected_selected_digest = Some(original);
+    selection.candidate.binding.candidate_version = "2".into();
+    selection.candidate.binding.source_revision = None;
+    selection.read_set = read_set(&prepare(&reads, A, "a").await);
+    let binding = selection.candidate.binding.digest().unwrap();
+    delivery
+        .select_candidate(TENANT, PROJECT, A, selection)
+        .await
+        .unwrap();
+    evidence(&reads, "code", CODE, Some(&binding)).await;
+    let report = evidence(&reads, "report", REPORT, Some(&binding)).await;
+    let round = run(&reads, A, "open", "review.open", opening(&report)).await;
+    let review = inspect_round(&reads, &round).await;
+    let submission = &review["submission"];
+    assert_eq!(submission["candidate_current"], true);
+    assert_eq!(submission["source_revision"], Value::Null);
+    let note = submission["guidance"]["action"]["note"].as_str().unwrap();
+    assert!(note.contains("Extra content lacks submission.source_revision: do not guess"));
+    assert!(
+        note.contains("an authorized, verifiable binding shows immutability + candidate binding")
+    );
+    assert!(note.contains("version is unverified"));
+    assert!(!note.contains("use this round's submission.source_revision"));
+    assert!(!submission.to_string().contains("git-blob:"));
+}
+
+#[tokio::test]
+async fn opaque_artifact_revision_still_requires_immutability_and_candidate_binding_checks() {
+    let (_guard, admin, db, reads) = setup().await;
+    seed_review_actors(&admin).await;
+    let delivery = connector(&admin, &db, &reads, "configure", "0", true).await;
+    let mut selection = select(&admin, &reads, &delivery).await;
+    let original = selection.candidate.binding.digest().unwrap();
+    selection.request_id = "select-opaque-artifact-revision".into();
+    selection.expected_selected_digest = Some(original);
+    selection.candidate.binding.candidate_version = "2".into();
+    let revision = selection
+        .candidate
+        .binding
+        .source_revision
+        .as_mut()
+        .unwrap();
+    revision.format = RevisionFormat::Artifact;
+    revision.value = "opaque-release-42".into();
+    selection.read_set = read_set(&prepare(&reads, A, "a").await);
+    let binding = selection.candidate.binding.digest().unwrap();
+    delivery
+        .select_candidate(TENANT, PROJECT, A, selection)
+        .await
+        .unwrap();
+    evidence(&reads, "code", CODE, Some(&binding)).await;
+    let report = evidence(&reads, "report", REPORT, Some(&binding)).await;
+    let round = run(&reads, A, "open", "review.open", opening(&report)).await;
+    let review = inspect_round(&reads, &round).await;
+    let submission = &review["submission"];
+    assert_eq!(submission["source_revision"]["format"], "artifact");
+    assert_eq!(submission["source_revision"]["value"], "opaque-release-42");
+    let note = submission["guidance"]["action"]["note"].as_str().unwrap();
+    assert!(note.contains("authorized-channel immutability + candidate-binding check"));
+    assert!(note.contains("else version unverified"));
+    assert!(!note.contains("the revision is immutable"));
+    assert!(!submission.to_string().contains("git-blob:"));
 }
 
 #[tokio::test]
@@ -913,6 +1005,15 @@ async fn changed_selection_preserves_original_review_content_but_blocks_approval
     );
     assert_eq!(review["submission"]["inspectable"], true);
     assert_eq!(review["submission"]["candidate_current"], false);
+    assert_eq!(
+        review["submission"]["guidance"]["action"]["op"],
+        "delivery.neutral.inspect"
+    );
+    assert!(
+        review["submission"]["guidance"]["action"]
+            .get("query")
+            .is_none()
+    );
     let before = rework_business_snapshot(&admin).await;
     assert!(
         run_err(
