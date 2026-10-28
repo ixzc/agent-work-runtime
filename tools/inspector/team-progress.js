@@ -51,6 +51,8 @@ function mapObservation(data) {
       settlement_scope: execution.settlement_scope || null,
       recovery_blocked: booleanOrUnknown(execution.recovery_blocked),
       recovery_cause: execution.recovery_cause || null,
+      reconciliation_authority: booleanOrUnknown(execution.reconciliation_authority),
+      controlled_confirmation_available: booleanOrUnknown(execution.controlled_confirmation_available),
       previous_epoch_review_required: booleanOrUnknown(execution.previous_epoch_review_required),
       receipt_missing: data.missing?.execution_receipt || null,
       report: execution.latest_receipt ? {

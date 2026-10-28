@@ -448,13 +448,24 @@ pub(super) fn select(data: &Value, context_complete: bool, owns_session: bool) -
             "receipt, grant, epoch, scope or recovery changes",
         )
     } else if execution["state"] == "unknown" {
+        let action = match execution["reconciliation_authority"].as_bool() {
+            Some(true) => {
+                "Inspect the latest receipt; if your authority is still current, reconcile the reviewed outcome before further effects."
+            }
+            Some(false) => {
+                "Inspect the latest receipt and ask an authorized operator to reconcile before further effects."
+            }
+            None => {
+                "Inspect the latest receipt and current reconciliation authority before further effects."
+            }
+        };
         (
             "reconcile_execution",
             "execution effects remain unresolved",
             "current execution or work requires recovery",
             "execution.inspect",
-            "Inspect the latest receipt and obtain authorized reconciliation before further effects.",
-            "new receipt or reconciliation",
+            action,
+            "receipt, authority or reconciliation changes",
         )
     } else if runtime["recovery_blocked"] == true {
         (
@@ -790,6 +801,44 @@ mod tests {
         );
         data["session_execution"] = json!({"state":"unknown"});
         assert_eq!(select(&data, true, true)["code"], "reconcile_execution");
+    }
+
+    #[test]
+    fn unknown_execution_guidance_distinguishes_current_callers_authority() {
+        let mut data = owned();
+        // The selected session's execution determines the action; another
+        // participant's historical execution must not change the advice.
+        data["execution"] = json!({"state":"unknown","reconciliation_authority":true});
+        data["session_execution"] = json!({"state":"unknown","reconciliation_authority":false});
+        let denied = select(&data, true, true);
+        assert_eq!(denied["action"]["op"], "execution.inspect");
+        assert!(
+            denied["action"]["note"]
+                .as_str()
+                .unwrap()
+                .contains("ask an authorized operator")
+        );
+
+        data["session_execution"]["reconciliation_authority"] = json!(true);
+        let allowed = select(&data, true, true);
+        assert_eq!(allowed["action"]["op"], "execution.inspect");
+        assert!(
+            allowed["action"]["note"]
+                .as_str()
+                .unwrap()
+                .contains("if your authority is still current")
+        );
+
+        data["session_execution"] = json!({"state":"unknown"});
+        let unknown = select(&data, true, true);
+        assert_eq!(unknown["action"]["op"], "execution.inspect");
+        assert!(
+            unknown["action"]["note"]
+                .as_str()
+                .unwrap()
+                .contains("current reconciliation authority")
+        );
+        assert!(unknown.to_string().len() < 900);
     }
 
     #[test]

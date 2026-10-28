@@ -2713,6 +2713,29 @@ async fn recovery_over_transports(trusted: bool, mode: &str, previous_epoch: boo
     )
     .await;
     assert_eq!(viewed["data"]["reconciliation_authority"], true);
+    // The selected execution belongs to the developer, but the authority
+    // reported in both views must belong to the authenticated viewer.
+    let observe_original = json!({"protocol_version":1,"op":"work.observe",
+        "work_id":"a","session_id":"session-a"});
+    let operator_view = call(&op, "awr_team_query", observe_original.clone(), false).await;
+    assert_eq!(operator_view["data"]["session"]["id"], "session-a");
+    assert_eq!(
+        operator_view["data"]["session_execution"]["reconciliation_authority"],
+        true
+    );
+    assert_eq!(
+        operator_view["data"]["execution"]["reconciliation_authority"],
+        true
+    );
+    let developer_view = call(&a, "awr_team_query", observe_original, false).await;
+    assert_eq!(
+        developer_view["data"]["session_execution"]["reconciliation_authority"],
+        false
+    );
+    assert_eq!(
+        developer_view["data"]["execution"]["reconciliation_authority"],
+        false
+    );
     assert_eq!(
         viewed["data"]["previous_epoch_review_required"],
         previous_epoch

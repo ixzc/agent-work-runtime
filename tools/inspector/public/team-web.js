@@ -1004,6 +1004,14 @@
             : t(i18n, execution.previous_epoch_review_required ? 'feedback.epoch_review_required' : 'feedback.epoch_review_not_required')]]);
         group.appendChild(el('p', { class: 'sub' }, t(i18n, 'feedback.execution_dimensions')));
         group.appendChild(el('p', { class: 'sub' }, t(i18n, 'feedback.execution_model_unknown')));
+        if (execution.state === 'unknown' && execution.controlled_confirmation_available !== true
+          && execution.recovery_cause !== 'unattributed_or_other_execution') {
+          const authority = execution.reconciliation_authority;
+          group.appendChild(el('p', { class: 'team-error' }, t(i18n,
+            authority === true ? 'feedback.reconciliation_authority_yes'
+              : authority === false ? 'feedback.reconciliation_authority_no'
+                : 'feedback.reconciliation_authority_unknown')));
+        }
       }
       if (w.checkpoint) {
         const history = el('details', { class: 'feedback-history' });

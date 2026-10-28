@@ -165,7 +165,8 @@ pub(super) async fn read_for_prepare(
             let mut summary = serde_json::Map::new();
             for key in ["execution_id", "state", "effects_settled", "contract_matches_current",
                 "epoch_matches_current", "lease_live", "owned_by_client", "cancel_requested",
-                "recovery_blocked", "previous_epoch_review_required", "controlled_confirmation_available"] {
+                "recovery_blocked", "previous_epoch_review_required", "controlled_confirmation_available",
+                "reconciliation_authority"] {
                 summary.insert(key.into(), execution[key].clone());
             }
             // Guidance only needs presence; the full declaration stays on execution.

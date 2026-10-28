@@ -62,6 +62,19 @@ test('execution report, artifact, scoped settlement and recovery remain separate
   }
 });
 
+test('current viewer reconciliation authority preserves true, false and legacy unknown', () => {
+  for (const [value, expected] of [[true, true], [false, false], [undefined, null], ['true', null]]) {
+    const execution = { state: 'unknown' };
+    if (value !== undefined) {
+      execution.reconciliation_authority = value;
+      execution.controlled_confirmation_available = value;
+    }
+    const mapped = mapObservation({ execution }).execution;
+    assert.equal(mapped.reconciliation_authority, expected);
+    assert.equal(mapped.controlled_confirmation_available, expected);
+  }
+});
+
 test('elapsed claim stays separate from settled execution and current intake guidance', () => {
   for (const state of ['succeeded', 'failed', 'cancelled']) {
     const guidance = { code: 'task_intake', action: { op: 'claim.acquire', note: 'Acquire a fresh claim' } };
