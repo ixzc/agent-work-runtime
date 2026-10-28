@@ -205,6 +205,57 @@ test('i18n keys for team web exist in en and zh-CN', () => {
   }
 });
 
+test('unresolved execution guidance renders the current viewer authority tri-state in both locales', () => {
+  const { install } = require('./fixtures/dom-stub');
+  const { createTeamWeb } = require('../public/team-web');
+  const catalogs = {
+    en: require('../public/locales/en'),
+    'zh-CN': require('../public/locales/zh-CN'),
+  };
+  const keys = {
+    true: 'feedback.reconciliation_authority_yes',
+    false: 'feedback.reconciliation_authority_no',
+    missing: 'feedback.reconciliation_authority_unknown',
+  };
+  for (const catalog of Object.values(catalogs)) {
+    const { document } = install();
+    const ui = createTeamWeb({ i18n: { t: key => catalog[key] || key }, $: id => document.getElementById(id) });
+    const work = { key: 'WORK', title: 'Work', workstream_id: 'stream', detail_loaded: true,
+      status: 'in_progress', recovery_blocked: false, depends_on: [], acceptance: [],
+      execution: { state: 'unknown', recovery_blocked: false } };
+    Object.assign(ui.state, { session: { session_id: 'session' }, projectKey: 'project', selected: 'WORK', works: [work] });
+    for (const [label, value] of [['true', true], ['false', false], ['missing', undefined]]) {
+      if (value === undefined) delete work.execution.reconciliation_authority;
+      else work.execution.reconciliation_authority = value;
+      ui.render();
+      const text = document.getElementById('teamDetail').textContent;
+      assert.ok(text.includes(catalog[keys[label]]), `${label} authority is shown`);
+      for (const other of Object.values(keys).filter(key => key !== keys[label]))
+        assert.ok(!text.includes(catalog[other]), `${label} does not collapse into ${other}`);
+    }
+    work.execution.state = 'succeeded';
+    work.execution.reconciliation_authority = true;
+    ui.render();
+    assert.ok(!document.getElementById('teamDetail').textContent.includes(catalog[keys.true]),
+      'authority is hidden when the outcome is settled and recovery is not blocked');
+    work.recovery_blocked = true;
+    ui.render();
+    assert.ok(!document.getElementById('teamDetail').textContent.includes(catalog[keys.true]),
+      'a work-level block does not attribute recovery to a settled execution');
+    work.execution.state = 'unknown';
+    work.execution.recovery_cause = 'unattributed_or_other_execution';
+    ui.render();
+    assert.ok(!document.getElementById('teamDetail').textContent.includes(catalog[keys.true]),
+      'a block attributed elsewhere does not direct recovery to this execution');
+    work.execution.recovery_cause = 'attributed_execution_report';
+    work.execution.controlled_confirmation_available = true;
+    work.execution.reconciliation_authority = false;
+    ui.render();
+    assert.ok(!document.getElementById('teamDetail').textContent.includes(catalog[keys.false]),
+      'controlled confirmation is not contradicted by reconciliation advice');
+  }
+});
+
 test('rewriteOwnedCookiePath maps upstream Path=/v1/web to /api/team', () => {
   const { rewriteOwnedCookiePath } = require('../team-bridge');
   const set = rewriteOwnedCookiePath(
