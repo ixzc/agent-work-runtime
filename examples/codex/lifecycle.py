@@ -52,23 +52,33 @@ def main():
                   "--agent", "codex-example", "--provider", "openai", "--model", args.model,
                   "--claim", "--ttl-ms", 3600000, "--expected-revision", status["project_revision"])
     session = started["session"]["id"]
-    bootstrap = run("05-bootstrap", "context", "bootstrap", "--session", session, "--budget", 1000)
+    assess = run("05-assess", "work", "assess", "EXAMPLE-001")
+    decision = assess.get("decision") or {}
+    require(decision.get("completion_policy") == "unchanged_source_policy",
+            "Assess must not change the source completion policy")
+    require(decision.get("execution_admission") == "not_granted_by_management_classification",
+            "Classification must not be treated as execution permission")
+    require(assess.get("observation_basis") == "host_assertion_not_independently_verified",
+            "Host observations stay unverified")
+    require(decision.get("mode") in ("lightweight", "continuous", "undetermined"),
+            "Intensity is not a completion score")
+    bootstrap = run("06-bootstrap", "context", "bootstrap", "--session", session, "--budget", 1000)
     require(bootstrap["context"]["complete"], "Bootstrap is incomplete; inspect its gaps")
     require(not bootstrap["context"]["execution_context_complete"], "L0 must remain orientation only")
-    context = run("06-context", "context", "compile", "--session", session, "--budget", 5000)
+    context = run("07-context", "context", "compile", "--session", session, "--budget", 5000)
     require(context["completeness"]["complete"] and context["work_context"], "L1 is incomplete")
 
     # A real agent reads the context and does the work before saving its own digest.
     # This example checkpoints only the lifecycle operations it actually performed.
-    status = run("07-status", "status")
+    status = run("08-status", "status")
     next_action = "Inspect the recovered context before continuing the source-intake work."
     open_loop = "The source-intake acceptance work and its independent review remain unfinished."
-    checkpoint = run("08-checkpoint", "session", "checkpoint", "--session", session,
+    checkpoint = run("09-checkpoint", "session", "checkpoint", "--session", session,
                      "--context-hash", context["work_context"]["context_hash"],
-                     "--digest", "Initialized the copied fixture, started a claimed session, and read L0/L1.",
+                     "--digest", "Initialized the copied fixture, started a claimed session, assessed management, and read L0/L1.",
                      "--next-action", next_action, "--open-loop", open_loop,
                      "--expected-revision", status["project_revision"])
-    resumed = run("09-resume", "session", "resume", "--from-session", session,
+    resumed = run("10-resume", "session", "resume", "--from-session", session,
                   "--agent", "codex-example-resumed", "--provider", "openai", "--model", args.model,
                   "--budget", 5000, "--expected-revision", checkpoint["project_revision"])
     require(resumed["context_ready"], "Inspect resume receipts before attempting another session")
@@ -77,20 +87,20 @@ def main():
     require(resumed["checkpoint_id"] == checkpoint["checkpoint"]["id"], "Checkpoint inheritance mismatch")
     require(resumed["resumed"]["claim"]["expires_at"] == started["claim"]["expires_at"],
             "Default resume must not silently extend a claim")
-    recovered = run("10-recovered-context", "context", "compile", "--session", successor, "--budget", 5000)
+    recovered = run("11-recovered-context", "context", "compile", "--session", successor, "--budget", 5000)
     require(recovered["completeness"]["complete"], "Recovered L1 is incomplete")
     recovered_text = json.dumps(recovered)
     require(next_action in recovered_text and open_loop in recovered_text, "Recovery lost the next action or open loop")
-    run("11-predecessor", "session", "show", session)
-    status = run("12-status", "status")
-    ended = run("13-end", "session", "end", "--session", successor, "--outcome", "incomplete",
+    run("12-predecessor", "session", "show", session)
+    status = run("13-status", "status")
+    ended = run("14-end", "session", "end", "--session", successor, "--outcome", "incomplete",
                 "--expected-revision", status["project_revision"])
-    final = run("14-successor", "session", "show", successor)
+    final = run("15-successor", "session", "show", successor)
     require(final["session"]["status"] == "incomplete", "Example session did not close")
     require(not any(c["status"] == "active" for c in final["claims"]), "Example left an active claim")
     after = {name: hashlib.sha256((project / name).read_bytes()).hexdigest() for name in source_names}
     require(before == after, "Lifecycle unexpectedly changed the copied source files")
-    doctor = run("15-doctor", "doctor")
+    doctor = run("16-doctor", "doctor")
     require(doctor["ok"] and not doctor["findings"], "Inspect the example's Doctor findings")
     summary = {
         "kind": "cli_lifecycle_example", "passed": True, "model_invoked": False,

@@ -149,6 +149,39 @@ AWR_SESSION=$(jq -er '.resumed.session.id' "$AWR_NOTES/resume.json")
 
 Resume creates a new AWR session. It does not switch the host's native chat.
 
+## Assess before compiling
+
+A `ready` queue row and a claim are not execution permission. After start or
+resume, read the current management assessment before compiling context or
+mutating source:
+
+```sh
+awrj work assess "$AWR_WORK"
+```
+
+Do not pass `--explain` on this path. Do not run `work manage`: that records
+host observations. Intensity (`lightweight` / `continuous` / `undetermined`) is
+not a permission, source-write or completion rule.
+`execution_admission=not_granted_by_management_classification` means
+classification did not grant admission. Listed acceptance is not proof that
+criteria are clear or verifiable; a goal link is not proof of implementation
+coverage. `observation_basis=host_assertion_not_independently_verified` stays
+unverified. See [management intensity](../reference/management.md).
+
+`work prepare --response-view action` returns required context and management
+requirements together. Consume its `next_action`, `admission_gaps` and required
+context; do not treat prepare as authorization to skip those reads. See
+[context continuity](context-continuity.md).
+
+### Specification coverage (current source)
+
+The current source tree also has read-only `awr spec check` (MCP `awr_spec_check`
+under `awr_work`). It is **not** in the 0.6.0 packages. It reports declared
+`covered` / `uncovered` / `needs_review` / `unknown` for registered specification
+refs. `covered` means a declared binding exists; it is not tests passed, review
+quality or parent-goal completion. Do not scan PRD prose or auto-create tasks.
+See [specification coverage](../reference/specification-coverage.md).
+
 ## Inspect before retrying
 
 A CLI timeout, dropped MCP connection or expired claim does not prove the
@@ -290,7 +323,9 @@ Ending releases claims. It does not complete source work.
 
 [examples/codex/lifecycle.py](../../../examples/codex/README.md) walks this CLI
 path on a copy of `examples/basic`. It invokes AWR, not a coding agent. The
-directory name is historical; treat the script as the L0 fixture.
+directory name is historical; treat the script as the L0 fixture. The fixture
+runs read-only `work assess` after the claim and before bootstrap; it does not
+run `work manage` or `spec check`.
 
 ## Verification boundary
 
