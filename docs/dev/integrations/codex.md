@@ -8,8 +8,10 @@
 Checked against **Codex CLI 0.155.0** and the official
 [MCP](https://learn.chatgpt.com/docs/extend/mcp) and
 [hooks](https://learn.chatgpt.com/docs/hooks) documentation on **2026-09-20**.
-The published package for this contract is **AWR 0.5.1**, not 0.4.0. This
-source tree uses that same grouped default. Codex owns its model, UI, native
+This note describes published **AWR 0.6.0** and the current source tree. Both
+expose grouped `awr_query`. The **0.4.0** package does not. **0.5.1** already
+grouped the catalog; install 0.6.0 for schema 14 and
+`session start --client/--conversation`. Codex owns its model, UI, native
 conversation IDs and compaction. AWR owns project facts, claims, checkpoints
 and evidence.
 
@@ -24,7 +26,7 @@ paths and lifecycle behavior that L0 cannot name:
 
 - stdio configuration is merged into `.codex/config.toml` or
   `~/.codex/config.toml`; project configuration requires a trusted project
-- the published AWR 0.5.1 catalog, and this source tree, default to grouped
+- the published AWR 0.6.0 catalog, and this source tree, default to grouped
   domain tools, so a flat child name is not the advertised top-level tool
 - Codex has a documented lifecycle hook envelope and an optional AWR installer
 
@@ -34,18 +36,26 @@ this page. Do not add a second AWR runtime or client-private history access.
 
 ## MCP merge paths
 
-Install published AWR 0.5.1, which includes the grouped MCP catalog, or build
+Install published AWR 0.6.0, which includes the grouped MCP catalog, or build
 both executables from this checkout:
 
 ```sh
-npm install -g @originoneai/agent-work-runtime@0.5.1
-# or: python -m pip install agent-work-runtime==0.5.1
+npm install -g @originoneai/agent-work-runtime@0.6.0
+# or: python -m pip install agent-work-runtime==0.6.0
 command -v awr-mcp
 
-# Contributor/source path. This tree uses the same grouped default as 0.5.1.
+# Contributor/source path. This tree uses the same grouped default as 0.6.0.
 cargo build --locked -p awr-cli -p awr-mcp
 # binaries: target/debug/awr and target/debug/awr-mcp
 ```
+
+0.5.1 projects use SQLite schema 7. 0.6.0 migrates **7 → 14** on the first
+explicit database write, normally `awr source reindex`. Back up `.awr/state.db`
+first. Older binaries refuse schema 14. See
+[AWR 0.6.0](../release/0.6.0.md) and
+[Upgrading from 0.5.x](../release/DISTRIBUTIONS.md#upgrading-from-05x-schema-7--14).
+0.6.0 packages compile Team code but leave it off unless enabled; this Codex
+note stays on personal CLI/MCP.
 
 Use absolute executable and project paths. Initialize the target project with a
 reviewed source manifest as described in [the basic example](../../../examples/basic/README.md).
@@ -73,7 +83,7 @@ changes. A configured server is not proof of an active connection.
 
 ## Grouped MCP discovery
 
-Published AWR 0.5.1 and this source tree default to eight top-level domain tools:
+Published AWR 0.6.0 and this source tree default to eight top-level domain tools:
 
 `awr_query`, `awr_context`, `awr_work`, `awr_evidence`, `awr_session`,
 `awr_continuity`, `awr_change`, `awr_compaction`.
@@ -104,7 +114,7 @@ which sets `AWR_MCP_TOOL_EXPOSURE_MODE=flat` and selects the eight original flat
 tools. Reconnect Codex after changing exposure mode so `tools/list` refreshes.
 See [the MCP reference](../../../crates/awr-mcp/README.md) for argument contracts.
 That reference still describes the older flat catalog in places; the domain list
-above is the default `tools/list` for 0.5.1 and this source tree.
+above is the default `tools/list` for 0.6.0 and this source tree.
 
 ## Identity
 
@@ -204,8 +214,9 @@ predates the 0.5.1 package and is not evidence for the current source tree:
    tools and the same status result; flat mode exposed 32 callable flat tools.
 
 That verifies Codex configuration parsing, live MCP startup and read routing
-through the grouped and flat paths against AWR 0.5.0. AWR 0.5.1 publishes the
-same grouped contract ([#66](https://github.com/originoneai/awr/pull/66),
-[#68](https://github.com/originoneai/awr/pull/68)). It is not lifecycle-hook
-activation, a model turn, Cloud execution or business acceptance, and it is not
-a fresh Codex CLI check of this later source tree.
+through the grouped and flat paths against AWR 0.5.0. 0.5.1 and 0.6.0 still
+default to the same eight domain tools and grouped `awr_query`
+([#66](https://github.com/originoneai/awr/pull/66),
+[#68](https://github.com/originoneai/awr/pull/68)), so the route still applies.
+It is not lifecycle-hook activation, a model turn, Cloud execution or business
+acceptance, and it is not a fresh Codex CLI check of this later source tree.
