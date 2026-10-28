@@ -5,8 +5,9 @@ a shared Streamable HTTP endpoint. Local single-project stdio remains available.
 Build with `cargo build --locked -p awr-mcp`; Cargo.lock pins the official `rmcp`
 SDK. Diagnostics use stderr; stdio stdout contains protocol messages only.
 
-The shared service and lifecycle extensions below are included in **AWR 0.3.3**.
-See the [shared service guide](../../docs/dev/reference/mcp-service.md)
+The shared service and lifecycle extensions below are included in **AWR 0.6.0**
+(first shipped in 0.3.3). See the
+[shared service guide](../../docs/dev/reference/mcp-service.md)
 for the project registry, client access, persistent conversations, wait/reply flow
 and request outcome recovery. Clients share one URL and select an authorized
 project on each call; projects retain separate sources and runtime databases.
@@ -40,8 +41,11 @@ No shell or report command is executed by a tool.
 
 ## Work and context tools
 
-These eight original tools retain their domain contracts. AWR 0.3.3 also
-exposes twelve lifecycle/continuity tools below; HTTP adds `awr_projects_list`.
+These eight original tools retain their domain contracts. 0.6.0 also
+exposes the twelve lifecycle/continuity tools first shipped in 0.3.3;
+HTTP adds `awr_projects_list`. The default `tools/list` is grouped
+(`awr_query` and the other domain tools), matching the
+[L0 session workflow](../../docs/dev/integrations/session-workflow.md).
 
 | Tool | Arguments and behavior |
 | --- | --- |
