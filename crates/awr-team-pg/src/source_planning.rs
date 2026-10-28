@@ -280,27 +280,29 @@ impl SourceStore {
                 ],
             )
             .await?;
-        // On resume, reload the durable row so callers always see one identity.
-        let row = if inserted == 0 {
-            tx.query_one(
+        // A reused identity is a replay only when the author and submitted
+        // intent match the durable suggestion. Never return another request's
+        // contents as a successful resume.
+        let row = tx
+            .query_one(
                 "SELECT id, version, author_person_id, author_actor_id, rationale,
-                        baseline_digest, baseline_epoch, state
+                        baseline_digest, baseline_epoch, state, author_client_id,
+                        affected_work_keys, proposed_notes
                  FROM awr_team.planning_suggestions
                  WHERE tenant_id=$1 AND project_id=$2 AND id=$3",
                 &[&tenant_id, &project_id, &suggestion_id],
             )
-            .await?
-        } else {
-            // Synthesize from just-inserted values via a round-trip for uniformity.
-            tx.query_one(
-                "SELECT id, version, author_person_id, author_actor_id, rationale,
-                        baseline_digest, baseline_epoch, state
-                 FROM awr_team.planning_suggestions
-                 WHERE tenant_id=$1 AND project_id=$2 AND id=$3",
-                &[&tenant_id, &project_id, &suggestion_id],
-            )
-            .await?
-        };
+            .await?;
+        if inserted == 0
+            && (row.get::<_, String>(2) != suggestion.author_person_id
+                || row.get::<_, String>(3) != auth.actor_id
+                || row.get::<_, String>(4) != suggestion.rationale
+                || row.get::<_, String>(8) != auth.client_id
+                || row.get::<_, Value>(9) != keys
+                || row.get::<_, Value>(10) != suggestion.proposed_notes)
+        {
+            return Err(PgError::IdempotencyConflict);
+        }
         let result = json!({
             "suggestion_id": row.get::<_, String>(0),
             "version": row.get::<_, i32>(1),
@@ -315,9 +317,16 @@ impl SourceStore {
             "mutates_live_acceptance": false,
             "state": row.get::<_, String>(7),
         });
+        // Unbound domain replays have no new operation receipt to attach and
+        // must not append a second success audit for the same suggestion.
+        if inserted == 0 && bind.is_none() {
+            tx.commit().await?;
+            return Ok(result);
+        }
+        let recorded_baseline: String = row.get(5);
         let summary = json!({
             "suggestion_id": suggestion_id,
-            "baseline_digest": baseline_digest,
+            "baseline_digest": recorded_baseline,
             "affected_work_keys": suggestion.affected_work_keys,
         });
         let out = bind_planning_receipt_and_ops_audit(
@@ -330,7 +339,7 @@ impl SourceStore {
             "suggestion",
             Some(&suggestion_id),
             None,
-            Some(&baseline_digest),
+            Some(&recorded_baseline),
             summary,
             &result,
         )
