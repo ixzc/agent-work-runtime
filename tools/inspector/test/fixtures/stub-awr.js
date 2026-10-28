@@ -151,6 +151,31 @@ if (mode === 'slow') {
   });
 } else if (joined.includes('ready')) {
   emit({ ok: true, ready: [], ready_total: 0, blocked_sample: [], blocked_total: 0 });
+} else if (joined.includes('work assess')) {
+  emit({
+    version: 1,
+    work: argv[argv.length - 1],
+    decision: {
+      version: 1,
+      mode: 'undetermined',
+      reasons: [],
+      unknown_observations: ['single_outcome', 'bounded_scope'],
+      reevaluation_signals: [],
+      required_actions: [
+        'preserve_identity_intent_scope_and_current_state',
+        'assess_unknown_management_facts',
+      ],
+      optional_maintenance: [],
+      completion_policy: 'unchanged_source_policy',
+      execution_admission: 'not_granted_by_management_classification',
+    },
+    observation: null,
+    observation_basis: 'host_assertion_not_independently_verified',
+    admission_gaps: [],
+    record_required: true,
+    next_action: 'record_current_assessment_with_explicit_host_observations',
+    scope: 'Management requirements only. Readiness, required goals/rules, authorization and completion remain enforced by their existing operations.',
+  });
 } else if (joined.includes('work show')) {
   emit({ ok: true, project_revision: 7, work: { external_key: argv[argv.length - 1] }, acceptance: [] });
 } else if (joined.includes('intake inspect')) {
