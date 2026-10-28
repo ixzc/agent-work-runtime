@@ -7,7 +7,9 @@ mod fixture;
 use awr_team::{
     DraftChange, DraftDefinitionState, DraftOpKind, OrdinaryPlanningSelfApprovePolicy, TaskDraft,
 };
-use awr_team_pg::{DraftCandidateCreate, PgError, SourceStore, SuggestionSubmit};
+use awr_team_pg::{
+    DraftCandidateCreate, PgError, SourceStore, SuggestionSubmit, workstream_credential_hash,
+};
 use fixture::*;
 use serde_json::json;
 
@@ -97,6 +99,160 @@ async fn developer_can_suggest_reader_cannot_and_suggestion_is_not_executable() 
         .await
         .unwrap_err();
     assert!(matches!(err, PgError::Forbidden), "{err:?}");
+}
+
+#[tokio::test]
+async fn predetermined_suggestion_id_binds_content_actor_client_and_replays_exactly() {
+    let (_g, admin, _db, store) = store_and_roles().await;
+    let suggestion_id = "fixed-planning-suggestion";
+    let original = SuggestionSubmit {
+        rationale: "Original rationale".into(),
+        affected_work_keys: vec!["CLIENT-1".into()],
+        proposed_notes: json!({"add":"SHARED-1"}),
+        author_person_id: Some("agent".into()),
+        predetermined_suggestion_id: Some(suggestion_id.into()),
+    };
+    let created = store
+        .submit_planning_suggestion(TENANT, PROJECT, A, &original)
+        .await
+        .unwrap();
+    let replayed = store
+        .submit_planning_suggestion(TENANT, PROJECT, A, &original)
+        .await
+        .unwrap();
+    assert_eq!(
+        replayed, created,
+        "an exact replay must safely return the original suggestion"
+    );
+
+    let successful_audits_before_collisions: i64 = admin
+        .query_one(
+            "SELECT count(*) FROM awr_team.ops_audit_records
+             WHERE tenant_id=$1 AND project_id=$2 AND action='planning.propose'
+               AND target_id=$3 AND result IN ('committed', 'succeeded')",
+            &[&TENANT, &PROJECT, &suggestion_id],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(
+        successful_audits_before_collisions, 1,
+        "an exact replay must not append another success audit"
+    );
+
+    let conflicting = SuggestionSubmit {
+        rationale: "Different rationale".into(),
+        proposed_notes: json!({"add":"DIFFERENT"}),
+        ..original.clone()
+    };
+    let err = store
+        .submit_planning_suggestion(TENANT, PROJECT, A, &conflicting)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, PgError::IdempotencyConflict),
+        "different content under a fixed suggestion id must conflict: {err:?}"
+    );
+
+    admin
+        .batch_execute(
+            "INSERT INTO awr_team.workstream_grants(
+                 tenant_id, project_id, actor_id, client_id, workstream_id,
+                 authority_version, can_read, can_write, active)
+             VALUES (
+                 'reader-tenant', 'reader-project', 'agent', 'cli-b',
+                 '00000000000000000000000001', 1, true, true, true)
+             ON CONFLICT (tenant_id, project_id, actor_id, client_id, workstream_id)
+             DO UPDATE SET can_read=true, can_write=true, active=true,
+                 grant_version=awr_team.workstream_grants.grant_version+1;",
+        )
+        .await
+        .unwrap();
+    let client_err = store
+        .submit_planning_suggestion(TENANT, PROJECT, B, &original)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(client_err, PgError::IdempotencyConflict),
+        "a different client under a fixed suggestion id must conflict: {client_err:?}"
+    );
+
+    let reviewer_token =
+        "awr1.planning-reviewer.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    let reviewer_hash = workstream_credential_hash(reviewer_token).unwrap();
+    admin
+        .execute(
+            "INSERT INTO awr_team.credentials(
+                 tenant_id, id, actor_id, client_id, secret_hash)
+             VALUES ($1, 'planning-reviewer', 'reviewer', 'cli-a', $2)",
+            &[&TENANT, &reviewer_hash],
+        )
+        .await
+        .unwrap();
+    admin
+        .batch_execute(
+            "UPDATE awr_team.project_memberships
+             SET role='maintainer', membership_version=membership_version+1
+             WHERE tenant_id='reader-tenant' AND project_id='reader-project'
+               AND actor_id='reviewer';
+             INSERT INTO awr_team.workstream_grants(
+                 tenant_id, project_id, actor_id, client_id, workstream_id,
+                 authority_version, can_read, can_write, active)
+             VALUES (
+                 'reader-tenant', 'reader-project', 'reviewer', 'cli-a',
+                 '00000000000000000000000001', 1, true, true, true);",
+        )
+        .await
+        .unwrap();
+    let actor_request = SuggestionSubmit {
+        author_person_id: Some("reviewer".into()),
+        ..original.clone()
+    };
+    let actor_err = store
+        .submit_planning_suggestion(TENANT, PROJECT, reviewer_token, &actor_request)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(actor_err, PgError::IdempotencyConflict),
+        "a different actor under a fixed suggestion id must conflict: {actor_err:?}"
+    );
+
+    let successful_audits_after_collisions: i64 = admin
+        .query_one(
+            "SELECT count(*) FROM awr_team.ops_audit_records
+             WHERE tenant_id=$1 AND project_id=$2 AND action='planning.propose'
+               AND target_id=$3 AND result IN ('committed', 'succeeded')",
+            &[&TENANT, &PROJECT, &suggestion_id],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(
+        successful_audits_after_collisions, successful_audits_before_collisions,
+        "rejected identity collisions must not write misleading success audits"
+    );
+
+    let persisted = admin
+        .query_one(
+            "SELECT author_actor_id, author_client_id, rationale, affected_work_keys,
+                    proposed_notes
+             FROM awr_team.planning_suggestions
+             WHERE tenant_id=$1 AND project_id=$2 AND id=$3",
+            &[&TENANT, &PROJECT, &suggestion_id],
+        )
+        .await
+        .unwrap();
+    assert_eq!(persisted.get::<_, String>(0), "agent");
+    assert_eq!(persisted.get::<_, String>(1), "cli-a");
+    assert_eq!(persisted.get::<_, String>(2), "Original rationale");
+    assert_eq!(
+        persisted.get::<_, serde_json::Value>(3),
+        json!(["CLIENT-1"])
+    );
+    assert_eq!(
+        persisted.get::<_, serde_json::Value>(4),
+        json!({"add":"SHARED-1"})
+    );
 }
 
 #[tokio::test]
