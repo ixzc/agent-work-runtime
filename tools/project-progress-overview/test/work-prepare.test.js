@@ -73,11 +73,43 @@ test('renderPrepare keeps guidance when the CLI reports ContextIncomplete', () =
         next_action: 'Resolve the listed required gaps for this work, then prepare again',
         recheck: 'Required sources, rules or work contract change',
       },
+      context: {
+        completeness: {
+          complete: false,
+          issues: [{ field: 'acceptance', code: 'required_source_missing', reference: 'docs/spec.md', reason: 'required source is not available' }],
+        },
+      },
+      management: { admission_gaps: ['source_acceptance_missing_or_ambiguous'] },
     },
   }, t);
   assert.match(html, /Required context is incomplete/);
   assert.match(html, /Resolve the listed required gaps/);
+  assert.match(html, /required_source_missing: required source is not available \(docs\/spec\.md\)/);
+  assert.match(html, /source_acceptance_missing_or_ambiguous/);
   assert.doesNotMatch(html, /ContextIncomplete/);
+});
+
+test('renderPrepare omits empty gap lists and escapes issue text', () => {
+  const t = h.tFor('en');
+  const empty = detail.renderPrepare(PREPARE, t);
+  assert.doesNotMatch(empty, /Required context gaps/);
+  assert.doesNotMatch(empty, /Admission gaps/);
+  const html = detail.renderPrepare({
+    ok: false,
+    data: {
+      guidance: {
+        when: 'Required context is incomplete',
+        basis: 'context.completeness.issues and source freshness',
+        next_action: 'Resolve the listed required gaps',
+        recheck: 'Required sources change',
+      },
+      context: { completeness: { issues: [{ code: '<img src=x>', reason: '<script>alert(1)</script>' }] } },
+      management: { admission_gaps: [] },
+    },
+  }, t);
+  assert.match(html, /&lt;img src=x&gt;: &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<img src=x>/);
+  assert.doesNotMatch(html, /Admission gaps/);
 });
 
 test('renderPrepare names Unsupported when there is no guidance payload', () => {
@@ -140,6 +172,8 @@ test('demo work prepare surfaces the action card without fetching', async () => 
   const text = ctx.container.querySelector('.pm-drawer-body').textContent;
   assert.match(text, /Required context is incomplete/);
   assert.match(text, /Resolve the listed required gaps/);
+  assert.match(text, /required_source_missing/);
+  assert.match(text, /source_acceptance_missing_or_ambiguous/);
   assert.doesNotMatch(text, /ContextIncomplete/);
   assert.doesNotMatch(text, /awr work manage/);
   assert.equal(ctx.container.querySelector('[data-pm-action="manage"]'), null);

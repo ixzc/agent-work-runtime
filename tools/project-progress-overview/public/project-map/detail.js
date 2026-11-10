@@ -168,11 +168,35 @@
     return g;
   }
 
+  function stringLines(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) => (typeof item === 'string' ? item : '')).filter(Boolean);
+  }
+
+  function issueLines(value) {
+    if (!Array.isArray(value)) return [];
+    const lines = [];
+    for (const item of value) {
+      if (typeof item === 'string') {
+        if (item) lines.push(item);
+        continue;
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const code = typeof item.code === 'string' ? item.code : typeof item.field === 'string' ? item.field : '';
+      const reason = typeof item.reason === 'string' ? item.reason : typeof item.detail === 'string' ? item.detail : '';
+      const reference = typeof item.reference === 'string' ? item.reference : '';
+      const text = [code, reason].filter(Boolean).join(': ');
+      if (text) lines.push(reference ? `${text} (${reference})` : text);
+    }
+    return lines;
+  }
+
   /**
    * Live `work prepare --response-view action` card. Snapshot facts stay in `renderDetail`;
    * empty prepare fields stay blank and are never filled from the snapshot. Guidance is
-   * shown even when the CLI exits with ContextIncomplete. The error code is shown only
-   * when there is no guidance payload.
+   * shown even when the CLI exits with ContextIncomplete. Completeness issues and
+   * admission_gaps stay on this card when the envelope carries them. The error code is
+   * shown only when there is no guidance payload.
    */
   function renderPrepare(envelope, t) {
     const data = envelope && envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data)
@@ -182,6 +206,7 @@
       const text = value == null || value === '' ? '' : String(value);
       return `<dt>${esc(label)}</dt><dd>${text ? esc(text) : `<span class="pm-d-none">${esc(t('map.detail.unset'))}</span>`}</dd>`;
     };
+    const listed = (title, items) => `<h3>${esc(title)}</h3><ul class="pm-d-list">${items.map((item) => `<li><code>${esc(item)}</code></li>`).join('')}</ul>`;
     const parts = [
       `<h3>${esc(t('map.prepare.title'))}</h3>`,
       `<p class="pm-d-note">${esc(t('map.prepare.not_completion'))}</p>`,
@@ -198,6 +223,10 @@
     } else {
       parts.push(`<p class="pm-d-none">${esc(t('map.prepare.missing'))}</p>`);
     }
+    const issues = issueLines(data && data.context && data.context.completeness && data.context.completeness.issues);
+    const gaps = stringLines(data && data.management && data.management.admission_gaps);
+    if (issues.length) parts.push(listed(t('map.prepare.issues'), issues));
+    if (gaps.length) parts.push(listed(t('map.prepare.admission'), gaps));
     return `<section class="pm-d-sec" data-pm-prepare-card>${parts.join('')}</section>`;
   }
 

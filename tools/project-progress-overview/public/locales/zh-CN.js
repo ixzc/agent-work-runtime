@@ -348,6 +348,8 @@
   "map.prepare.basis": "依据",
   "map.prepare.next": "下一步",
   "map.prepare.recheck": "复核",
+  "map.prepare.issues": "必填上下文缺口",
+  "map.prepare.admission": "准入缺口",
   "map.prepare.demo_when": "所需上下文不完整",
   "map.prepare.demo_basis": "context.completeness.issues 和源新鲜度",
   "map.prepare.demo_next": "先补齐这一项列出的必填缺口，再重新 prepare",

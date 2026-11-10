@@ -108,6 +108,13 @@
           next_action: t('map.prepare.demo_next'),
           recheck: t('map.prepare.demo_recheck'),
         },
+        context: {
+          completeness: {
+            complete: false,
+            issues: [{ field: 'acceptance', code: 'required_source_missing', reference: 'acceptance', reason: 'required source is not available' }],
+          },
+        },
+        management: { admission_gaps: ['source_acceptance_missing_or_ambiguous'] },
         response_view: { version: 1, view: 'action' },
       },
     };

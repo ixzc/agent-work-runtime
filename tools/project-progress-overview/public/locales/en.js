@@ -348,6 +348,8 @@
   "map.prepare.basis": "Basis",
   "map.prepare.next": "Next action",
   "map.prepare.recheck": "Recheck",
+  "map.prepare.issues": "Required context gaps",
+  "map.prepare.admission": "Admission gaps",
   "map.prepare.demo_when": "Required context is incomplete",
   "map.prepare.demo_basis": "context.completeness.issues and source freshness",
   "map.prepare.demo_next": "Resolve the listed required gaps for this work, then prepare again",
